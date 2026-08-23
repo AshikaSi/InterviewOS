@@ -6,7 +6,7 @@ from schemas import InterviewSessionCreate, InterviewSessionResponse, QuestionRe
 from interview_service import (
     create_interview_session, generate_question, submit_answer, end_interview
 )
-
+import json
 router = APIRouter(prefix="/api/sessions", tags=["interviews"])
 
 def get_current_user(db: Session = Depends(get_db)):
@@ -105,3 +105,43 @@ async def end_interview_endpoint(session_id: int, db: Session = Depends(get_db))
         raise HTTPException(status_code=404, detail="Session not found")
     
     return {"status": "completed", "session_id": session_id}
+
+
+@router.get("/{session_id}/report", response_model=dict)
+async def get_report(session_id: int, db: Session = Depends(get_db)):
+    """Get interview report"""
+    
+    from report_service import ReportService
+    
+    report = ReportService.get_report(db, session_id)
+    if not report:
+        raise HTTPException(status_code=404, detail="Report not found")
+    
+    return {
+        "id": report.id,
+        "overall_score": report.overall_score,
+        "duration_seconds": report.duration_seconds,
+        "skill_scores": json.loads(report.skill_scores_json) if report.skill_scores_json else {},
+        "top_3_weaknesses": json.loads(report.top_3_weaknesses_json) if report.top_3_weaknesses_json else [],
+        "strengths": json.loads(report.strengths_json) if report.strengths_json else [],
+        "prep_plan": json.loads(report.prep_plan_json) if report.prep_plan_json else {}
+    }
+
+@router.get("/user/all-reports")
+async def get_all_user_reports(
+    db: Session = Depends(get_db),
+    user_id: int = 1
+):
+    """Get all reports for a user"""
+    
+    from report_service import ReportService
+    
+    reports = ReportService.get_user_reports(db, user_id)
+    
+    return [{
+        "id": r.id,
+        "session_id": r.interview_session_id,
+        "overall_score": r.overall_score,
+        "created_at": r.created_at,
+        "weakest_skills": json.loads(r.top_3_weaknesses_json) if r.top_3_weaknesses_json else []
+    } for r in reports]

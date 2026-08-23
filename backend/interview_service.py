@@ -206,7 +206,9 @@ def submit_answer(db: Session, question_id: int, answer_data: AnswerSubmit):
     return db_eval
 
 def end_interview(db: Session, session_id: int):
-    """End interview session"""
+    """End interview session and generate report"""
+    
+    from report_service import ReportService
     
     session = db.query(InterviewSession).filter(InterviewSession.id == session_id).first()
     if session:
@@ -214,6 +216,9 @@ def end_interview(db: Session, session_id: int):
         session.completed_at = datetime.utcnow()
         db.commit()
         db.refresh(session)
+        
+        # Auto-generate report
+        ReportService.generate_report(db, session_id)
     
     return session
 

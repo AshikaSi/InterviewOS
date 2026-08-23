@@ -100,3 +100,19 @@ class KnowledgeBaseQuestion(Base):
     topic_tags = Column(String(512))
     is_public = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
+
+class InterviewReport(Base):
+    __tablename__ = "interview_reports"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    interview_session_id = Column(Integer, ForeignKey("interview_sessions.id"), nullable=False, unique=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    overall_score = Column(Integer)
+    duration_seconds = Column(Integer)
+    skill_scores_json = Column(String(2000))
+    weakest_skill_id = Column(Integer, ForeignKey("skills.id"))
+    weakest_skill_score = Column(Float)
+    top_3_weaknesses_json = Column(String(1000))
+    strengths_json = Column(String(1000))
+    prep_plan_json = Column(String(5000))
+    created_at = Column(DateTime, default=datetime.utcnow)

@@ -80,3 +80,20 @@ class EvaluationResponse(BaseModel):
     
     class Config:
         from_attributes = True
+
+
+class ReportResponse(BaseModel):
+    id: int
+    interview_session_id: int
+    overall_score: Optional[int]
+    duration_seconds: Optional[int]
+    skill_scores_json: Optional[str]
+    weakest_skill_id: Optional[int]
+    weakest_skill_score: Optional[float]
+    top_3_weaknesses_json: Optional[str]
+    strengths_json: Optional[str]
+    prep_plan_json: Optional[str]
+    created_at: datetime
+    
+    class Config:
+        from_attributes = True

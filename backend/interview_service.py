@@ -3,6 +3,7 @@ from models import (
     InterviewSession, InterviewQuestion, CandidateAnswer, 
     Evaluation, Skill, CandidateSkillProfile, User
 )
+from knowledge_base_service import KnowledgeBaseService
 from schemas import InterviewSessionCreate, AnswerSubmit
 from llm_service import InterviewerAgent, EvaluatorAgent, PlannerAgent
 from adaptive_policy import AdaptivePolicy
@@ -14,6 +15,7 @@ from datetime import datetime
 interviewer = InterviewerAgent()
 evaluator = EvaluatorAgent()
 planner = PlannerAgent()
+kb_service = KnowledgeBaseService()
 
 # Time budgets
 TIME_BUDGETS = {
@@ -62,11 +64,14 @@ def create_interview_session(db: Session, user_id: int, session_data: InterviewS
     return db_session
 
 def generate_question(db: Session, session_id: int):
-    """Generate next question using adaptive policy"""
+    """Generate next question using adaptive policy + RAG"""
     
     session = db.query(InterviewSession).filter(InterviewSession.id == session_id).first()
     if not session:
         return None
+    
+    # Seed knowledge base if not already done
+    kb_service.seed_knowledge_base(db)
     
     # Select next skill using adaptive policy
     next_skill_profile = AdaptivePolicy.select_next_skill(
@@ -76,17 +81,36 @@ def generate_question(db: Session, session_id: int):
     if not next_skill_profile:
         return None
     
-    skill_name = next_skill_profile.skill_id and db.query(Skill).filter(
+    skill_obj = db.query(Skill).filter(
         Skill.id == next_skill_profile.skill_id
-    ).first().name or "General"
+    ).first()
+    skill_name = skill_obj.name if skill_obj else "General"
     
-    # Call AI to generate question
-    ai_response = interviewer.generate_question(
+    # Find similar problems from knowledge base (RAG)
+    similar_problems = kb_service.find_similar_problems(
+        db,
+        query=skill_name,
+        skill_id=next_skill_profile.skill_id,
+        top_k=3
+    )
+    
+    # LOG: Show what RAG found
+    print(f"\n🔍 RAG RETRIEVAL FOR SKILL: {skill_name}")
+    print(f"Found {len(similar_problems)} similar problems:")
+    for i, problem in enumerate(similar_problems, 1):
+        print(f"  {i}. {problem['title']} (Similarity: {problem['similarity']:.2f})")
+    
+    # Call AI to generate question with RAG context
+    ai_response = interviewer.generate_question_with_rag(
+        db=db,
         mode=session.mode,
         skill=skill_name,
         difficulty=session.current_difficulty,
-        turn_number=session.turn_count + 1
+        turn_number=session.turn_count + 1,
+        similar_problems=similar_problems
     )
+    
+    print(f"✅ Generated Question: {ai_response['question_text'][:100]}...\n")
     
     # Create question record
     turn_number = session.turn_count + 1

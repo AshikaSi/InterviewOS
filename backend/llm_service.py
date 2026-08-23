@@ -1,20 +1,16 @@
-import google.generativeai as genai
+import google.genai as genai
 from config import settings
 import json
 
-# Configure Gemini
-genai.configure(api_key=settings.GEMINI_API_KEY)
+# Configure Gemini with new package
+client = genai.Client(api_key=settings.GEMINI_API_KEY)
 
 class InterviewerAgent:
     """Generates interview questions using Gemini AI"""
     
-    def __init__(self):
-        self.model = genai.GenerativeModel('gemini-3.6-flash')
-    
     def generate_question(self, mode: str, skill: str, difficulty: str, turn_number: int) -> dict:
         """Generate a question for interview"""
         
-        # Build prompt based on mode
         if mode == "technical_qa":
             prompt = self._build_technical_prompt(skill, difficulty, turn_number)
         elif mode == "system_design":
@@ -25,10 +21,62 @@ class InterviewerAgent:
             prompt = self._build_technical_prompt(skill, difficulty, turn_number)
         
         try:
-            # Call Gemini
-            response = self.model.generate_content(prompt)
+            response = client.models.generate_content(
+                model="gemini-3.6-flash",
+                contents=prompt
+            )
+            result = self._parse_response(response.text)
             
-            # Parse response
+            return {
+                "question_text": result.get("question", ""),
+                "rubric_json": json.dumps(result.get("rubric", {})),
+                "success": True
+            }
+        except Exception as e:
+            return {
+                "question_text": f"Error generating question: {str(e)}",
+                "rubric_json": "{}",
+                "success": False
+            }
+    
+    def generate_question_with_rag(
+        self,
+        db,
+        mode: str,
+        skill: str,
+        difficulty: str,
+        turn_number: int,
+        similar_problems: list = None
+    ) -> dict:
+        """Generate question using RAG for context"""
+        
+        # Build RAG context
+        rag_context = ""
+        if similar_problems:
+            rag_context = "\n\nSimilar real problems for context:\n"
+            for problem in similar_problems:
+                rag_context += f"- {problem['title']} ({problem['difficulty']}): {problem['description']}\n"
+        
+        # Build prompt with RAG context
+        if mode == "technical_qa":
+            prompt = self._build_technical_prompt(skill, difficulty, turn_number)
+            if rag_context:
+                prompt += rag_context
+                prompt += "\nUse these similar problems as inspiration for realistic question generation."
+        elif mode == "system_design":
+            prompt = self._build_system_design_prompt(difficulty, turn_number)
+            if rag_context:
+                prompt += rag_context
+        elif mode == "behavioral":
+            prompt = self._build_behavioral_prompt(difficulty, turn_number)
+        else:
+            prompt = self._build_technical_prompt(skill, difficulty, turn_number)
+        
+        try:
+            response = client.models.generate_content(
+                model="gemini-3.6-flash",
+                contents=prompt
+            )
             result = self._parse_response(response.text)
             
             return {
@@ -163,9 +211,6 @@ RUBRIC: {{"situation_clarity": 0, "action_taken": 0, "result_impact": 0, "commun
 class EvaluatorAgent:
     """Evaluates answers using Gemini AI"""
     
-    def __init__(self):
-        self.model = genai.GenerativeModel('gemini-3.6-flash')
-    
     def evaluate_answer(self, question: str, answer: str, rubric: dict) -> dict:
         """Evaluate a candidate's answer"""
         
@@ -197,7 +242,10 @@ OVERALL_LEVEL: 3
 FEEDBACK: Good understanding of the core concepts with clear explanation. Could have gone deeper into edge cases and optimization strategies."""
         
         try:
-            response = self.model.generate_content(prompt)
+            response = client.models.generate_content(
+                model="gemini-3.6-flash",
+                contents=prompt
+            )
             result = self._parse_evaluation(response.text)
             return result
         except Exception as e:
@@ -245,9 +293,6 @@ FEEDBACK: Good understanding of the core concepts with clear explanation. Could 
 class PlannerAgent:
     """Generates personalized prep plans"""
     
-    def __init__(self):
-        self.model = genai.GenerativeModel('gemini-3.6-flash')
-    
     def generate_prep_plan(self, weaknesses: list, interview_mode: str, company: str = None) -> dict:
         """Generate personalized prep plan"""
         
@@ -273,16 +318,13 @@ WEEK_1_RESOURCES: [Resources]
 WEEK_2_FOCUS: [Topic]
 WEEK_2_TOPICS: [Specific topics]
 WEEK_2_HOURS: [Number]
-WEEK_2_RESOURCES: [Resources]
-
-Example:
-WEEK_1_FOCUS: DSA Fundamentals
-WEEK_1_TOPICS: Arrays, Linked Lists, Hash Tables
-WEEK_1_HOURS: 8
-WEEK_1_RESOURCES: LeetCode Easy problems, GeeksforGeeks tutorials"""
+WEEK_2_RESOURCES: [Resources]"""
         
         try:
-            response = self.model.generate_content(prompt)
+            response = client.models.generate_content(
+                model="gemini-3.6-flash",
+                contents=prompt
+            )
             result = self._parse_plan(response.text)
             return result
         except Exception as e:

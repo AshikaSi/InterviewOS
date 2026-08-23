@@ -87,3 +87,16 @@ class CandidateSkillProfile(Base):
     uncertainty = Column(Float, default=1.0)
     evidence_count = Column(Integer, default=0)
     created_at = Column(DateTime, default=datetime.utcnow)
+
+class KnowledgeBaseQuestion(Base):
+    __tablename__ = "knowledge_base_questions"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    source = Column(String(32))  # "blind_75", "leetcode", etc
+    skill_id = Column(Integer, ForeignKey("skills.id"))
+    question_title = Column(String(256), nullable=False)
+    question_description = Column(String(2000))
+    difficulty_level = Column(String(32))
+    topic_tags = Column(String(512))
+    is_public = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)

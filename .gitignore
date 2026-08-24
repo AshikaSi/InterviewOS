@@ -1,1 +1,33 @@
+# Frontend
+frontend/node_modules/
+frontend/.next/
+frontend/.env.local
+frontend/dist/
+frontend/build/
+
+# Backend
+backend/__pycache__/
+backend/.venv/
+backend/venv/
+backend/*.db
 backend/.env
+backend/.pytest_cache/
+backend/interviewos.db
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Dependencies
+*.egg-info/
+dist/
+build/
+
+# Logs
+*.log

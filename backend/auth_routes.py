@@ -12,13 +12,18 @@ router = APIRouter(prefix="/api/auth", tags=["auth"])
 async def signup(user_data: UserCreate, db: Session = Depends(get_db)):
     """Create new user account"""
     
+    print(f"[DEBUG] Signup attempt: {user_data.email}")
+    
     # Check if user exists
     existing_user = db.query(User).filter(User.email == user_data.email).first()
     if existing_user:
+        print(f"[DEBUG] User already exists: {user_data.email}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Email already registered"
         )
+    
+    print(f"[DEBUG] Creating new user: {user_data.email}")
     
     # Create new user
     db_user = User(
@@ -32,11 +37,20 @@ async def signup(user_data: UserCreate, db: Session = Depends(get_db)):
         db.add(db_user)
         db.commit()
         db.refresh(db_user)
-    except IntegrityError:
+        print(f"[DEBUG] User created successfully: {db_user.id}")
+    except IntegrityError as e:
         db.rollback()
+        print(f"[DEBUG] IntegrityError: {e}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Error creating user"
+        )
+    except Exception as e:
+        db.rollback()
+        print(f"[DEBUG] Exception: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Server error: {str(e)}"
         )
     
     # Create tokens
@@ -48,7 +62,6 @@ async def signup(user_data: UserCreate, db: Session = Depends(get_db)):
         "refresh_token": refresh_token,
         "user": UserResponse.from_orm(db_user)
     }
-
 @router.post("/login", response_model=TokenResponse)
 async def login(user_data: UserLogin, db: Session = Depends(get_db)):
     """Login user"""

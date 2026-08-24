@@ -4,8 +4,8 @@ from typing import Optional
 from jose import JWTError, jwt
 from config import settings
 
-# Password hashing
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# Use simpler hashing without bcrypt
+pwd_context = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
 
 # JWT Configuration
 SECRET_KEY = "your-secret-key-change-this-in-production"

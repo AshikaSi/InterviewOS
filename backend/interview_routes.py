@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
+from fastapi import UploadFile, File
 from database import get_db
 from models import InterviewSession, User
 from schemas import InterviewSessionCreate, InterviewSessionResponse, QuestionResponse, AnswerSubmit, EvaluationResponse
@@ -145,3 +146,60 @@ async def get_all_user_reports(
         "created_at": r.created_at,
         "weakest_skills": json.loads(r.top_3_weaknesses_json) if r.top_3_weaknesses_json else []
     } for r in reports]
+
+
+@router.get("/{session_id}/question/audio")
+async def get_question_audio(session_id: int, db: Session = Depends(get_db)):
+    """Get audio version of the current question"""
+    
+    from audio_service import audio_service
+    
+    # Get latest question
+    question = db.query(InterviewQuestion).filter(
+        InterviewQuestion.interview_session_id == session_id
+    ).order_by(InterviewQuestion.id.desc()).first()
+    
+    if not question:
+        raise HTTPException(status_code=404, detail="No question found")
+    
+    # Generate audio
+    audio_base64 = audio_service.text_to_speech_base64(question.question_text)
+    
+    return {
+        "question_id": question.id,
+        "audio": audio_base64,
+        "format": "mp3"
+    }
+
+
+@router.post("/{session_id}/transcribe-audio")
+async def transcribe_audio(session_id: int, file: UploadFile = File(...), db: Session = Depends(get_db)):
+    """Transcribe audio to text using Whisper"""
+    
+    from stt_service import stt_service
+    
+    try:
+        # Read audio file
+        audio_bytes = await file.read()
+        
+        # Transcribe using Whisper
+        transcribed_text = stt_service.transcribe_from_bytes(
+            audio_bytes,
+            filename=file.filename or "audio.wav"
+        )
+        
+        if not transcribed_text:
+            raise HTTPException(
+                status_code=400,
+                detail="Failed to transcribe audio"
+            )
+        
+        return {
+            "text": transcribed_text,
+            "success": True
+        }
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Transcription error: {str(e)}"
+        )
